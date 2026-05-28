@@ -1,102 +1,80 @@
 import { useEffect } from 'react';
-import { PushNotifications } from '@capacitor/push-notifications';
-import { Capacitor } from '@capacitor/core';
-import { toast } from 'sonner';
+import { Platform, Alert } from 'react-native';
+import messaging from '@react-native-firebase/messaging';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './useAuth';
+import { API_URL, getAuthHeader } from '../lib/api';
 
 export const usePushNotifications = () => {
   const { user } = useAuth();
 
+  const registerTokenWithBackend = async (token: string) => {
+    try {
+      const authHeader = await getAuthHeader(AsyncStorage);
+      await fetch(`${API_URL}/users/register-fcm`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...authHeader 
+        },
+        body: JSON.stringify({ 
+          token, 
+          deviceType: Platform.OS 
+        }),
+      });
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement du token FCM:', error);
+    }
+  };
+
   const requestPermissions = async () => {
-    if (!Capacitor.isNativePlatform()) {
-      return false;
-    }
-
     try {
-      const result = await PushNotifications.requestPermissions();
-      if (result.receive === 'granted') {
-        await PushNotifications.register();
-        return true;
+      const authStatus = await messaging().requestPermission();
+      const enabled =
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+      if (enabled) {
+        console.log('Statut d\'autorisation:', authStatus);
+        const token = await messaging().getToken();
+        if (token) {
+          console.log('FCM Token:', token);
+          if (user) await registerTokenWithBackend(token);
+        }
       }
+      return enabled;
+    } catch (error) {
+      console.error('Erreur demande permissions notification:', error);
       return false;
-    } catch (error) {
-      console.error('Error requesting push notification permissions:', error);
-      return false;
-    }
-  };
-
-  const scheduleReminderNotification = async () => {
-    if (!Capacitor.isNativePlatform() || !user) return;
-
-    try {
-      // Programmer une notification de rappel pour demain à 19h
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(19, 0, 0, 0);
-
-      // Note: Pour les vraies notifications programmées, vous devrez utiliser
-      // @capacitor/local-notifications et configurer un service backend
-      console.log('Notification programmée pour:', tomorrow);
-    } catch (error) {
-      console.error('Error scheduling notification:', error);
-    }
-  };
-
-  const celebrateStreak = async (streakCount: number) => {
-    if (!Capacitor.isNativePlatform()) {
-      toast.success(`🎉 Félicitations ! ${streakCount} jours d'affilée !`);
-      return;
-    }
-
-    try {
-      // Afficher une notification de célébration
-      const message = streakCount >= 7 
-        ? `🔥 Incroyable ! ${streakCount} jours d'affilée !`
-        : `👏 Bravo pour ${streakCount} jours d'affilée !`;
-      
-      toast.success(message);
-    } catch (error) {
-      console.error('Error showing celebration:', error);
     }
   };
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!user) return;
 
-    const initPushNotifications = async () => {
-      // Écouter l'enregistrement des notifications push
-      await PushNotifications.addListener('registration', token => {
-        console.log('Push registration success, token: ' + token.value);
-        // Sauvegarder le token dans Supabase si nécessaire
-      });
+    // Demander les permissions au démarrage
+    requestPermissions();
 
-      // Écouter les erreurs d'enregistrement
-      await PushNotifications.addListener('registrationError', err => {
-        console.error('Registration error: ', err.error);
-      });
+    // Écouter le rafraîchissement du token
+    const unsubscribeTokenRefresh = messaging().onTokenRefresh(token => {
+      registerTokenWithBackend(token);
+    });
 
-      // Écouter les notifications reçues
-      await PushNotifications.addListener('pushNotificationReceived', notification => {
-        console.log('Push notification received: ', notification);
-        toast.info(notification.body || 'Nouvelle notification');
-      });
-
-      // Écouter les actions sur les notifications
-      await PushNotifications.addListener('pushNotificationActionPerformed', notification => {
-        console.log('Push notification action performed', notification.actionId, notification.inputValue);
-      });
-    };
-
-    initPushNotifications();
+    // Écouter les messages au premier plan
+    const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
+      Alert.alert(
+        remoteMessage.notification?.title || 'Nouvelle notification',
+        remoteMessage.notification?.body || ''
+      );
+    });
 
     return () => {
-      PushNotifications.removeAllListeners();
+      unsubscribeTokenRefresh();
+      unsubscribeForeground();
     };
-  }, []);
+  }, [user]);
 
   return {
     requestPermissions,
-    scheduleReminderNotification,
-    celebrateStreak
   };
 };

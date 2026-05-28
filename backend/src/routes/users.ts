@@ -35,4 +35,19 @@ router.patch('/profile', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
+router.post('/register-fcm', authenticateToken, async (req: AuthRequest, res) => {
+  const { token, deviceType } = req.body;
+  const userId = req.user?.id;
+
+  try {
+    await query(
+      'INSERT INTO fcm_tokens (user_id, token, device_type) VALUES ($1, $2, $3) ON CONFLICT (user_id, token) DO UPDATE SET last_seen = NOW()',
+      [userId, token, deviceType]
+    );
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

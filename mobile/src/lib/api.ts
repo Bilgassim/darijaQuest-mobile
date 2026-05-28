@@ -1,10 +1,9 @@
 import { Platform } from 'react-native';
 
-// Pour l'émulateur Android, localhost est 10.0.2.2
-// Pour iOS, localhost est localhost
-export const API_URL = Platform.OS === 'android' 
-  ? 'http://10.0.2.2:3000/api' 
-  : 'http://localhost:3000/api';
+// On utilise localhost pour toutes les plateformes.
+// Pour que cela fonctionne sur un téléphone Android physique, 
+// il faut lancer la commande : adb reverse tcp:3000 tcp:3000
+export const API_URL = 'http://localhost:3000/api';
 
 export const getAuthHeader = async (AsyncStorage: any) => {
   const token = await AsyncStorage.getItem('darija_token');

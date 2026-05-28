@@ -8,6 +8,7 @@
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/index.ts",
     "build": "tsc",
     "upload:audio": "npx ts-node scripts/upload-audio.ts",
+    "notify": "npx ts-node scripts/send-notification.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -19,6 +20,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "firebase-admin": "^13.10.0",
     "jsonwebtoken": "^9.0.3",
     "minio": "^8.0.7",
     "pg": "^8.21.0"
