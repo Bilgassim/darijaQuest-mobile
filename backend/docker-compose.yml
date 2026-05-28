@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Base de données PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: darija-postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=darija_admin
+      - POSTGRES_PASSWORD=darija_password
+      - POSTGRES_DB=darijaquest
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql/data
+
+  # Interface de gestion pour Postgres
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: darija-pgadmin
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@darija.local
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+  # MinIO (Alternative S3 pour l'audio et images)
+  minio:
+    image: minio/minio
+    container_name: darija-minio
+    restart: always
+    ports:
+      - "9000:9000" # API
+      - "9001:9001" # Console UI
+    environment:
+      - MINIO_ROOT_USER=darija_minio_admin
+      - MINIO_ROOT_PASSWORD=darija_minio_password
+    volumes:
+      - ./volumes/minio/data:/data
+    command: server /data --console-address ":9001"
+
+networks:
+  default:
+    name: darija-network
